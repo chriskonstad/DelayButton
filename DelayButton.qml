@@ -46,7 +46,7 @@ Rectangle {
             property double lineThickness: 10;
             property double animationInterval: 10;
             property bool done: false;
-            property double fillRatio: animationInterval/timeToComplete;
+            property double fillRatio: animationInterval/(timeToComplete ? timeToComplete : animationInterval);
             property double radiusButton: -2*lineThickness + canvas.width/2
 
             //PUBLIC API
@@ -116,7 +116,7 @@ Rectangle {
                 ctx.beginPath();
                 ctx.strokeStyle=arcColor;
                 ctx.lineWidth=10;
-                ctx.arc(canvas.x+(canvas.width/2),canvas.y+(canvas.height/2),radiusButton + lineThickness/2,Math.PI/2,targetAngle);
+                ctx.arc(canvas.x+(canvas.width/2),canvas.y+(canvas.height/2),radiusButton + lineThickness/2 - 1,Math.PI/2,targetAngle);
                 ctx.stroke();
                 //console.log("Repainted arc");
             }
@@ -133,5 +133,4 @@ Rectangle {
             }
         }
     }
-
 }
