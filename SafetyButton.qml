@@ -3,66 +3,73 @@ import QtQuick 2.0
 Rectangle {
     id: page
     width: 360
-    height: 360
+    height: 180
+    color: "#5c5c5c"
+    border.color: "#5c5c5c"
 
     Rectangle {
-        id: buttonBase
-        x: 80
-        y: 80
-        width: 200
-        height: 200
+        id: button
+        width: page.width/2
+        height: page.height/2
+        color: backgroundColor
+        radius: height/10;
+        border.color: backgroundBorderColor;
+        border.width: height/15;
+        anchors.centerIn: page;
+
+        //Public API
+        property bool isChecked: progressBar.done;
+        property bool allowInstantUncheck: false;
+        property double timeToComplete: 500;
+        property color progressColorAnimation: "#2A82DA";
+        property color progressColorDone: "green";
+        property color backgroundColor: "#353535";
+        property color backgroundBorderColor: "white";
+
+        //Public signals
+        signal clicked;
+        signal pressed;
+        signal released;
 
         MouseArea {
             id: buttonMouseArea
             anchors.fill: parent
             onPressed: {
-                //Ignore button presses outside of the circle
-                var x = mouseX - width/2;
-                var y = mouseY - height/2;
-                var radius = Math.sqrt(x*x + y*y);
-                if(radius <= canvas.radiusButton) {
-                    canvas.onButtonDown();
-                }
+                progressBar.onButtonDown();
+                button.pressed();
             }
 
             onReleased: {
-                //Ignore button presses outside of the circle
-                var x = mouseX - width/2;
-                var y = mouseY - height/2;
-                var radius = Math.sqrt(x*x + y*y);
-                if(radius <= canvas.radiusButton) {
-                    canvas.onButtonUp();
-                }
+                progressBar.onButtonUp();
+                button.released();
             }
         }
 
-        Canvas {
-            id: canvas
-            width: buttonBase.width
-            height: buttonBase.height
-            antialiasing: true;
+        Rectangle {
+            id: progressBar
+            width: (button.width - 2*parent.border.width) * percentage;
+            color: button.progressColorAnimation;
+            radius: button.radius/2;
+            anchors.margins: parent.border.width;
+            anchors.left: parent.left
+            anchors.top: parent.top;
+            anchors.bottom: parent.bottom;
 
-            property double arcAngle: Math.PI/2;
-            property double lineThickness: 10;
+            property double percentage: 0;
+            property double lineThickness: height/100;
             property double animationInterval: 10;
             property bool done: false;
-            property double fillRatio: animationInterval/(timeToComplete ? timeToComplete : animationInterval);
-            property double radiusButton: -2*lineThickness + canvas.width/2
-
-            //PUBLIC API
-            property bool checked: done;
-            property double timeToComplete: 1000;
-            property color background: "#6E6E6E"
-            property color checkedBackground: "#353535"
-            property color arcColor: "#2A82DA"
+            property bool lastStatus: false;
+            property double fillRatio: animationInterval/(button.timeToComplete ? button.timeToComplete : animationInterval);
 
             Timer {
                 id: timerDown
-                interval: canvas.animationInterval; running: false; repeat: true;
+                interval: progressBar.animationInterval; running: false; repeat: true;
                 onTriggered:{
-                    canvas.setAngle(canvas.arcAngle + (canvas.fillRatio*2*Math.PI));
-                    if(canvas.arcAngle >= Math.PI/2 + 2*Math.PI) {
-                        canvas.done = true;
+                    progressBar.setPercentage(progressBar.percentage + (progressBar.fillRatio));
+                    if(progressBar.percentage >= 1) {
+                        progressBar.percentage = 1;
+                        progressBar.done = true;
                         timerDown.stop();
                     }
                 }
@@ -70,20 +77,19 @@ Rectangle {
 
             Timer {
                 id: timerUp
-                interval: canvas.animationInterval; running: false; repeat: true;
+                interval: progressBar.animationInterval; running: false; repeat: true;
                 onTriggered:{
-                    canvas.setAngle(canvas.arcAngle - (canvas.fillRatio*2*Math.PI));
-                    if(canvas.arcAngle <= Math.PI/2) {
-                        canvas.setAngle(Math.PI/2);
-                        canvas.done = false;
+                    progressBar.setPercentage(progressBar.percentage - (progressBar.fillRatio));
+                    if(progressBar.percentage <= 0) {
+                        progressBar.setPercentage(0);
+                        progressBar.done = false;
                         timerUp.stop();
                     }
                 }
             }
 
-            function setAngle(angle) {
-                arcAngle = angle;
-                canvas.requestPaint();
+            function setPercentage(percent) {
+                percentage = percent;
             }
 
             function onButtonDown() {
@@ -91,8 +97,13 @@ Rectangle {
                     timerUp.stop();
                     timerDown.start();
                 } else {
-                    canvas.setAngle(Math.PI/2);
-                    canvas.done = false;
+                    if(button.allowInstantUncheck) {
+                        setPercentage(0);
+                        done = false;
+                    } else {
+                        timerDown.stop();
+                        timerUp.start();
+                    }
                 }
             }
 
@@ -100,36 +111,20 @@ Rectangle {
                 if(!done) {
                     timerDown.stop();
                     timerUp.start();
+                } else {
+                    if(!button.allowInstantUncheck) {
+                        timerUp.stop();
+                        timerDown.start();
+                    }
                 }
-            }
 
-            function drawButtonBase() {
-                var ctxCircle = canvas.getContext('2d');
-                ctxCircle.beginPath();
-                ctxCircle.arc(canvas.x+(canvas.width/2), canvas.y+(canvas.height/2), radiusButton, 0, 2*Math.PI);
-                ctxCircle.fillStyle = !done ? background : checkedBackground;
-                ctxCircle.fill();
-            }
+                progressBar.color = done ? button.progressColorDone : button.progressColorAnimation;
 
-            function drawArc(targetAngle) {
-                var ctx = canvas.getContext('2d');
-                ctx.beginPath();
-                ctx.strokeStyle=arcColor;
-                ctx.lineWidth=10;
-                ctx.arc(canvas.x+(canvas.width/2),canvas.y+(canvas.height/2),radiusButton + lineThickness/2 - 1,Math.PI/2,targetAngle);
-                ctx.stroke();
-                //console.log("Repainted arc");
-            }
-
-            function clearDrawing() {
-                var ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-
-            onPaint: {
-                clearDrawing();
-                drawButtonBase();
-                drawArc(arcAngle);
+                if(done != lastStatus) {
+                    button.clicked();
+                    console.log("clicked");
+                    lastStatus = done;
+                }
             }
         }
     }
